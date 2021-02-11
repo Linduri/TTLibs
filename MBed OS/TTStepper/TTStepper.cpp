@@ -6,7 +6,7 @@
 *                               |_|  |_|            
 *
 *
-* @file TTStepper.cpp
+* @file ttstepper.cpp
 * @brief This file contains the functions associated with TTStepper.
 *
 * @author Ted Tooth
@@ -26,7 +26,7 @@
 * @copyright Ted Tooth 2021
 */
 
-#include "TTStepper.h"
+#include "ttstepper.h"
 #include <algorithm>
 #include <chrono>
 #include <cstdint>

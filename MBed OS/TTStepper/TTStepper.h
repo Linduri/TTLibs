@@ -1,3 +1,31 @@
+/**
+*        _____ _____ ___ _                          
+*       |_   _|_   _/ __| |_ ___ _ __ _ __  ___ _ _ 
+*         | |   | | \__ \  _/ -_) '_ \ '_ \/ -_) '_|
+*         |_|   |_| |___/\__\___| .__/ .__/\___|_|  
+*                               |_|  |_|            
+*
+*
+* @file ttstepper.h
+* @brief This file contains the definitions and delcarations associated with TTStepper.
+*
+* @author Ted Tooth
+* @date 31 Jan 2021
+*
+* Update log:
+*
+*   Rev 1.0 - All initial functionality added.
+*
+*
+* To do
+*   - Acceleration and velocity needs verification.
+*   - Add chirp function.
+*   - Fix endstop ISR Queue overflow error (maybe just dodgy wiring?).
+*   - Add ability for zero acceleration.
+*
+* @copyright Ted Tooth 2021
+*/
+
 #ifndef TTSTEPPER_H
 #define TTSTEPPER_H
 
