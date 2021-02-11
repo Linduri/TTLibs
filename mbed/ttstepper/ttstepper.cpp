@@ -613,15 +613,15 @@ void TTStepper::Endstop(int id, bool rise){
         //Stop any step sequence.
         timeout.detach();
 
+        travelling = false;
+
         if(homing){
             homing = false;
             eventFlags.set(TTSTEPPER_HOMED_FLAG);            
         }
-
-        if(travelling){
-            travelling = false;
+        else{
             eventFlags.set(TTSTEPPER_TRAVEL_ENDED_FLAG);
-        }
+        }       
         
         endstopHit = id;
         if(onEndstopHit != 0){
