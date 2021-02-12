@@ -1,8 +1,7 @@
 #ifndef TT_ENCODER_H
 #define TT_ENCODER_H
 
-#define TTENCODER_CLOCKWISE 1
-#define TTENCODER_ANTICLOCKWISE 0
+#define TT_ENCODER_SUCCESS 0
 
 #include "mbed.h"
 
@@ -12,6 +11,10 @@ class TTEncoder{
 
         int getChangeCount(void);
         int getChangeCount(int direction);
+
+        int Reset(void);
+
+        enum direction{clockwise, anticlockwise};
 
     private:
         InterruptIn *inA = 0;

@@ -10,74 +10,53 @@ TTEncoder::TTEncoder(PinName inA, PinName inB, PinMode inAMode, PinMode inBMode)
     this->inB->fall(callback(this, &TTEncoder::inBFallISR));
 }
 
-// void TTEncoder::StateMachine(void){
-//     switch(state){
-//         case waiting:
-//             //Nothing has happened yet, just be chill.
-//             break;
-
-//         case aUp:
-//             //If 
-//             break;
-
-//         case aDown:
-            
-//             break;
-
-//         case bUp:
-            
-//             break;
-
-//         case bDown:
-            
-//             break;
-
-//         default:
-
-//             break;
-//     }
-// }
-
 int TTEncoder::getChangeCount(void){
-    return changeCount[TTENCODER_CLOCKWISE] - changeCount[TTENCODER_ANTICLOCKWISE];
+    return changeCount[clockwise] - changeCount[anticlockwise];
 }
 
 int TTEncoder::getChangeCount(int direction){
     return changeCount[direction];
 }
 
+int TTEncoder::Reset(void){
+    changeCount[clockwise] = 0;
+    changeCount[anticlockwise] =0;
+
+    return TT_ENCODER_SUCCESS
+}
+
 void TTEncoder::inARiseISR(void){
     if(!inB->read()){
-        changeCount[TTENCODER_CLOCKWISE]++;
+        changeCount[clockwise]++;
     }
     else{
-        changeCount[TTENCODER_ANTICLOCKWISE]++;
+        changeCount[anticlockwise]++;
     }
 }
 
 void TTEncoder::inAFallISR(void){
     if(inB->read()){
-        changeCount[TTENCODER_CLOCKWISE]++;
+        changeCount[clockwise]++;
     }
     else{
-        changeCount[TTENCODER_ANTICLOCKWISE]++;
+        changeCount[anticlockwise]++;
     }
 }
 
 void TTEncoder::inBRiseISR(void){
     if(inA->read()){
-        changeCount[TTENCODER_CLOCKWISE]++;
+        changeCount[clockwise]++;
     }
     else{
-        changeCount[TTENCODER_ANTICLOCKWISE]++;
+        changeCount[anticlockwise]++;
     }
 }
 
 void TTEncoder::inBFallISR(void){
     if(!inA->read()){
-        changeCount[TTENCODER_CLOCKWISE]++;
+        changeCount[clockwise]++;
     }
     else{
-        changeCount[TTENCODER_ANTICLOCKWISE]++;
+        changeCount[anticlockwise]++;
     }
 }
