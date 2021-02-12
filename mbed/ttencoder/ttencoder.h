@@ -3,6 +3,8 @@
 
 #define TT_ENCODER_SUCCESS 0
 
+#define TT_ENCODER_OVERWRITTEN_CALLBACK -1
+
 #include "mbed.h"
 
 class TTEncoder{
@@ -17,6 +19,8 @@ class TTEncoder{
         enum direction{clockwise, anticlockwise};
         enum risefall{rise, fall};
         enum in{A, B};
+
+        int SetOnPulseCallback(function<void()> callback);
 
     private:
         InterruptIn *inA = 0;
@@ -35,6 +39,8 @@ class TTEncoder{
 
         void inBRiseISR(void);
         void inBFallISR(void);
+
+        function<void()> onPulseCallback = 0;
 };
 
 

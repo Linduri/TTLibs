@@ -25,6 +25,23 @@ int TTEncoder::Reset(void){
     return TT_ENCODER_SUCCESS;
 }
 
+int TTEncoder::SetOnPulseCallback(function<void()> callback){
+    bool existingCallback = false;
+    if(onPulseCallback != 0){
+        existingCallback = true;
+    }
+
+    onPulseCallback = callback;
+
+    if(existingCallback){
+        return TT_ENCODER_OVERWRITTEN_CALLBACK;
+    }
+    else{
+        return TT_ENCODER_SUCCESS;
+    }
+}
+
+
 void TTEncoder::inARiseISR(void){
     switch(state){
         case 2:
@@ -40,6 +57,10 @@ void TTEncoder::inARiseISR(void){
         default:
             //Illegal
             break;
+    }
+
+    if(onPulseCallback != 0){
+        onPulseCallback();
     }
 }
 
@@ -59,6 +80,10 @@ void TTEncoder::inAFallISR(void){
             //Illegal
             break;
     }
+
+    if(onPulseCallback != 0){
+        onPulseCallback();
+    }
 }
 
 void TTEncoder::inBRiseISR(void){
@@ -77,6 +102,10 @@ void TTEncoder::inBRiseISR(void){
             //Illegal
             break;
     }
+
+    if(onPulseCallback != 0){
+        onPulseCallback();
+    }
 }
 
 void TTEncoder::inBFallISR(void){
@@ -94,5 +123,9 @@ void TTEncoder::inBFallISR(void){
         default:
             //Illegal
             break;
+    }
+
+    if(onPulseCallback != 0){
+        onPulseCallback();
     }
 }
