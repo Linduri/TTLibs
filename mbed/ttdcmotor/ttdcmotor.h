@@ -14,7 +14,7 @@
 
 class TTDcMotor{
     public:
-        TTDcMotor(PinName pwm, PinName dir);
+        TTDcMotor(PinName pwm, PinName hA, PinName hB, PinName hEn = NC);
 
         /* @breif Useful definitions for direction. */
         enum direction{clockwise, anticlockwise};
@@ -69,6 +69,8 @@ class TTDcMotor{
         */
         int SetMoveEndedCallback(function<void()> callback);
 
+        int SetDirection(bool dir);
+
     private:
 
         /*
@@ -77,7 +79,9 @@ class TTDcMotor{
         void MoveCallback(void);
 
         AnalogOut pwm;
-        DigitalOut dir;
+        DigitalOut hA;
+        DigitalOut hB;
+        DigitalOut hEn;
 
         TTEncoder *encoder = 0;
 

@@ -1,6 +1,6 @@
 #include "ttdcmotor.h"
 
-TTDcMotor::TTDcMotor(PinName pwm, PinName dir) : pwm(pwm), dir(dir){}
+TTDcMotor::TTDcMotor(PinName pwm, PinName hA, PinName hB, PinName hEn) : pwm(pwm), hA(hA, 0), hB(hB, 0),hEn(hEn, 0){}
 
 /*
 * @brief Moves the motor perpetually.
@@ -23,7 +23,8 @@ int TTDcMotor::Spin(float speed, bool direction){
     }
 
     pwm.write(speed);
-    dir = direction;
+    SetDirection(direction);
+    hEn = 1;
     return TT_DC_MOTOR_SUCCESS;
 }
 
@@ -33,6 +34,7 @@ int TTDcMotor::Spin(float speed, bool direction){
 */
 int TTDcMotor::Stop(void){
     pwm.write(0);
+    hEn = 0;
     return TT_DC_MOTOR_SUCCESS;
 }
 
@@ -130,4 +132,18 @@ int TTDcMotor::SetMoveEndedCallback(function<void()> callback){
     else{
         return TT_ENCODER_SUCCESS;
     }
+}
+
+int TTDcMotor::SetDirection(bool dir){
+    if(dir){
+        hA = 0;
+        hB = 1;
+    }
+    else
+    {
+        hA = 1;
+        hB = 0;
+    }
+
+    return TT_DC_MOTOR_SUCCESS;
 }
