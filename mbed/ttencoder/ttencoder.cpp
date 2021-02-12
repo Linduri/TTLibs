@@ -1,3 +1,20 @@
+/**
+*     _____ _____ ___                 _         
+*    |_   _|_   _| __|_ _  __ ___  __| |___ _ _ 
+*      | |   | | | _|| ' \/ _/ _ \/ _` / -_) '_|
+*      |_|   |_| |___|_||_\__\___/\__,_\___|_|  
+*                                                     
+*
+*
+* @file TTEncoder.cpp
+* @brief This file contains the functions associated with TTEncoder.
+*
+* @author Ted Tooth
+* @date 11 Feb 2021
+*
+* @copyright Ted Tooth 2021
+*/
+
 #include "ttencoder.h"
 
 TTEncoder::TTEncoder(PinName inA, PinName inB, PinMode inAMode, PinMode inBMode){
@@ -10,34 +27,60 @@ TTEncoder::TTEncoder(PinName inA, PinName inB, PinMode inAMode, PinMode inBMode)
     this->inB->fall(callback(this, &TTEncoder::inBFallISR));
 }
 
-int TTEncoder::getChangeCount(void){
-    return changeCount[clockwise] - changeCount[anticlockwise];
+int TTEncoder::getInterruptCount(void){
+    if(!mtx.trylock_for(TT_DEFAULT_MUTEX_TIMEOUT)){
+        return TT_MUTEX_TIMEOUT;
+    }
+    else{
+        int retval = changeCount[clockwise] - changeCount[anticlockwise];
+        mtx.unlock();
+        return retval;
+    }
 }
 
-int TTEncoder::getChangeCount(int direction){
-    return changeCount[direction];
+int TTEncoder::getInterruptCount(int direction){
+    if(!mtx.trylock_for(TT_DEFAULT_MUTEX_TIMEOUT)){
+        return TT_MUTEX_TIMEOUT;
+    }
+    else{
+        int retval =  changeCount[direction];
+        mtx.unlock();
+        return retval;
+    }
 }
 
 int TTEncoder::Reset(void){
-    changeCount[clockwise] = 0;
-    changeCount[anticlockwise] = 0;
-
-    return TT_ENCODER_SUCCESS;
-}
-
-int TTEncoder::SetOnPulseCallback(function<void()> callback){
-    bool existingCallback = false;
-    if(onPulseCallback != 0){
-        existingCallback = true;
-    }
-
-    onPulseCallback = callback;
-
-    if(existingCallback){
-        return TT_ENCODER_OVERWRITTEN_CALLBACK;
+    if(!mtx.trylock_for(TT_DEFAULT_MUTEX_TIMEOUT)){
+        return TT_MUTEX_TIMEOUT;
     }
     else{
-        return TT_ENCODER_SUCCESS;
+        changeCount[clockwise] = 0;
+        changeCount[anticlockwise] = 0;
+        mtx.unlock();
+        return TT_SUCCESS;
+    }
+}
+
+int TTEncoder::SetOnInterruptCallback(function<void()> callback){
+    if(!mtx.trylock_for(TT_DEFAULT_MUTEX_TIMEOUT)){
+        return TT_MUTEX_TIMEOUT;
+    }
+    else{
+        bool existingCallback = false;
+        if(onInterruptCallback != 0){
+            existingCallback = true;
+        }
+
+        onInterruptCallback = callback;
+
+        mtx.unlock();
+
+        if(existingCallback){
+            return TT_OVERWROTE_CALLBACK;
+        }
+        else{
+            return TT_SUCCESS;
+        }
     }
 }
 
@@ -59,8 +102,8 @@ void TTEncoder::inARiseISR(void){
             break;
     }
 
-    if(onPulseCallback != 0){
-        onPulseCallback();
+    if(onInterruptCallback != 0){
+        onInterruptCallback();
     }
 }
 
@@ -81,8 +124,8 @@ void TTEncoder::inAFallISR(void){
             break;
     }
 
-    if(onPulseCallback != 0){
-        onPulseCallback();
+    if(onInterruptCallback != 0){
+        onInterruptCallback();
     }
 }
 
@@ -103,8 +146,8 @@ void TTEncoder::inBRiseISR(void){
             break;
     }
 
-    if(onPulseCallback != 0){
-        onPulseCallback();
+    if(onInterruptCallback != 0){
+        onInterruptCallback();
     }
 }
 
@@ -125,7 +168,7 @@ void TTEncoder::inBFallISR(void){
             break;
     }
 
-    if(onPulseCallback != 0){
-        onPulseCallback();
+    if(onInterruptCallback != 0){
+        onInterruptCallback();
     }
 }
