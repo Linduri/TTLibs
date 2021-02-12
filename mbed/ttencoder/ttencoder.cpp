@@ -42,6 +42,10 @@ int TTEncoder::getChangeCount(void){
     return changeCount[TTENCODER_CLOCKWISE] - changeCount[TTENCODER_ANTICLOCKWISE];
 }
 
+int TTEncoder::getChangeCount(int direction){
+    return changeCount[direction];
+}
+
 void TTEncoder::inARiseISR(void){
     if(!inB->read()){
         changeCount[TTENCODER_CLOCKWISE]++;

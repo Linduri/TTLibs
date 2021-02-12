@@ -11,6 +11,7 @@ class TTEncoder{
         TTEncoder(PinName inA, PinName inB, PinMode inAMode = PullDefault, PinMode inBMode = PullDefault);
 
         int getChangeCount(void);
+        int getChangeCount(int direction);
 
     private:
         InterruptIn *inA = 0;
