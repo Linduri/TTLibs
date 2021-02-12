@@ -20,43 +20,79 @@ int TTEncoder::getChangeCount(int direction){
 
 int TTEncoder::Reset(void){
     changeCount[clockwise] = 0;
-    changeCount[anticlockwise] =0;
+    changeCount[anticlockwise] = 0;
 
-    return TT_ENCODER_SUCCESS
+    return TT_ENCODER_SUCCESS;
 }
 
 void TTEncoder::inARiseISR(void){
-    if(!inB->read()){
-        changeCount[clockwise]++;
-    }
-    else{
-        changeCount[anticlockwise]++;
+    switch(state){
+        case 2:
+            changeCount[anticlockwise]++;
+            state = 1;
+            break;
+
+        case 3:
+            changeCount[clockwise]++;
+            state = 0;
+            break;
+
+        default:
+            //Illegal
+            break;
     }
 }
 
 void TTEncoder::inAFallISR(void){
-    if(inB->read()){
-        changeCount[clockwise]++;
-    }
-    else{
-        changeCount[anticlockwise]++;
+    switch(state){
+        case 0:
+            changeCount[anticlockwise]++;
+            state = 3;
+            break;
+
+        case 1:
+            changeCount[clockwise]++;
+            state = 2;
+            break;
+
+        default:
+            //Illegal
+            break;
     }
 }
 
 void TTEncoder::inBRiseISR(void){
-    if(inA->read()){
-        changeCount[clockwise]++;
-    }
-    else{
-        changeCount[anticlockwise]++;
+    switch(state){
+        case 0:
+            changeCount[clockwise]++;
+            state = 1;
+            break;
+
+        case 3:
+            changeCount[anticlockwise]++;
+            state = 2;
+            break;
+
+        default:
+            //Illegal
+            break;
     }
 }
 
 void TTEncoder::inBFallISR(void){
-    if(!inA->read()){
-        changeCount[clockwise]++;
-    }
-    else{
-        changeCount[anticlockwise]++;
+    switch(state){
+        case 1:
+            changeCount[anticlockwise]++;
+            state = 0;
+            break;
+        
+        case 2:
+            changeCount[clockwise]++;
+            state = 3;
+            break;
+
+        default:
+            //Illegal
+            break;
     }
 }

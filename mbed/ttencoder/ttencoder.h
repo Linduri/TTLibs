@@ -15,6 +15,8 @@ class TTEncoder{
         int Reset(void);
 
         enum direction{clockwise, anticlockwise};
+        enum risefall{rise, fall};
+        enum in{A, B};
 
     private:
         InterruptIn *inA = 0;
@@ -23,11 +25,10 @@ class TTEncoder{
         volatile uint32_t pulseCount[2] = {0};
         volatile uint32_t changeCount[2] = {0};
         
-        uint8_t previousState = waiting;
-        uint8_t state = waiting;
+        int state = 0;
         enum states{waiting, aUp, aDown, bUp, bDown};
 
-        void StateMachine(void);
+        void StateISR(int in, int riseFall);
 
         void inARiseISR(void);
         void inAFallISR(void);
