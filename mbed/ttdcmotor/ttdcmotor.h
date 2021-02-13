@@ -29,13 +29,13 @@ class TTDcMotor{
     public:
         /*
         * @brief Create an asynchronus interrupt-driven dc motor.
-        * @param pwm Pwm pin to drive motor h-bridge.
-        * @param hA H-bridge A input.
-        * @param hB H-bridge B input.
-        * @param hEn (Optional) Enable pin for h-bridge.
-        * @param enActiveLow (Optional) Is the enable pin active low?
+        * @param en PWM pin to drive motor h-bridge.
+        * @param A H-bridge A input.
+        * @param B H-bridge B input.
+        * @param period PWM period to use in seconds.
+        * @param inaInbActiveLow (Optional) Are A and B channels active low?
         */
-        TTDcMotor(PinName pwm, PinName hA, PinName hB, bool inaInbActiveLow = false, PinName hEn = NC, bool enActiveLow = true);
+        TTDcMotor(PinName en, PinName A, PinName B, float period, bool inaInbActiveLow = false);
 
         /*
         * @brief Registers an encoder to use wiht the motor.
@@ -116,13 +116,10 @@ class TTDcMotor{
         PwmOut pwm;
 
         /* @brief H-bridge A channel enable pin. */
-        DigitalOut hA;
+        DigitalOut A;
 
         /* @brief H-bridge B channel enable pin. */
-        DigitalOut hB;
-
-        /* @brief H-bridge enable pin. */
-        DigitalOut hEn;
+        DigitalOut B;
 
         /* @brief Have a encoder unique top this motor if required. */
         TTEncoder *encoder = 0;

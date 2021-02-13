@@ -16,8 +16,10 @@
 
 #include "ttdcmotor.h"
 
-TTDcMotor::TTDcMotor(PinName pwm, PinName hA, PinName hB, bool inaInbActiveLow, PinName hEn, bool enActiveLow) 
-    : pwm(pwm), hA(hA, 0), hB(hB, 0), inaInbActiveLow(inaInbActiveLow), hEn(hEn, 0), enActiveLow(enActiveLow){}
+TTDcMotor::TTDcMotor(PinName en, PinName A, PinName B, float period, bool inaInbActiveLow) 
+    : pwm(en), A(A), B(B), inaInbActiveLow(inaInbActiveLow){
+        pwm.period(period);
+}
 
 int TTDcMotor::Spin(float speed, bool direction){
     if(!mtx.trylock_for(TT_DEFAULT_MUTEX_TIMEOUT)){
@@ -39,7 +41,6 @@ int TTDcMotor::Spin(float speed, bool direction){
 
         pwm.write(speed);
         SetDirection(direction);
-        hEn = !enActiveLow;
 
         mtx.unlock();
         return retVal;
@@ -52,7 +53,8 @@ int TTDcMotor::Stop(void){
     }
     else{
         pwm.write(0);
-        hEn = enActiveLow;
+        A = inaInbActiveLow;
+        B = inaInbActiveLow;
 
         mtx.unlock();
         return TT_SUCCESS;
@@ -150,13 +152,13 @@ int TTDcMotor::SetMoveEndedCallback(function<void()> callback){
 
 int TTDcMotor::SetDirection(bool dir){
     if(dir){
-        hA = inaInbActiveLow;
-        hB = !inaInbActiveLow;
+        A = inaInbActiveLow;
+        B = !inaInbActiveLow;
     }
     else
     {
-        hA = !inaInbActiveLow;
-        hB = inaInbActiveLow;
+        A = !inaInbActiveLow;
+        B = inaInbActiveLow;
     }
 
     return TT_SUCCESS;
