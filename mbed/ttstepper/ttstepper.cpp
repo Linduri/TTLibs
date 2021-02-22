@@ -274,6 +274,8 @@ int TTStepper::Home(milliseconds timeout, bool direction){
         int waitResult = eventFlags.wait_any(TTSTEPPER_HOMED_FLAG, timeout.count());
         //If no flag triggered, report timeout.
         if(waitResult < 0){
+            stepTimeout.detach();
+            travelling = false;
             homing = false;
             return TTSTEPPER_ERROR_HOMING_TIMEOUT;
         }
@@ -579,7 +581,7 @@ void TTStepper::StepISR(void){
 
         //Calculate the current velocity interval.
         long period = (1000000.0f / (stepsPerRevolution * rps));
-        timeout.attach(callback(this, &TTStepper::StepISR), microseconds(period));
+        stepTimeout.attach(callback(this, &TTStepper::StepISR), microseconds(period));
     }
     else{
         travelling = false;
@@ -611,7 +613,7 @@ void TTStepper::Endstop(int id, bool rise){
         //If non-active braking, disable the stepper.
         en = activeBraking ? !enActiveLow : enActiveLow;     
         //Stop any step sequence.
-        timeout.detach();
+        stepTimeout.detach();
 
         travelling = false;
 

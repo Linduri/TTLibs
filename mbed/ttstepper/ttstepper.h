@@ -22,6 +22,10 @@
 *   - Add chirp function.
 *   - Fix endstop ISR Queue overflow error (maybe just dodgy wiring?).
 *   - Add ability for zero acceleration.
+*   - Change WaitForTravelEnd timeout parament to be chrono.
+*   - Add homing speed.
+*   - First WaitForTravelEnd is instant.
+*   - Endstop hit auto-resest so damage can be done moving through endstop.
 *
 * @copyright Ted Tooth 2021
 */
@@ -47,7 +51,7 @@ using namespace chrono;
 #define TTSTEPPER_ANTICLOCKWISE false
 
 #define TTSTEPPER_HOMED_FLAG (0x1 << 0)
-#define TTSTEPPER_TRAVEL_ENDED_FLAG (0x1 << 2)
+#define TTSTEPPER_TRAVEL_ENDED_FLAG (0x1 << 1)
 #define TTSTEPPER_DEFAULT_HOMING_TIMEOUT 3s
 
 #define TTSTEPPER_ONE_ENDSTOP 1
@@ -342,7 +346,7 @@ class TTStepper{
 
     //================================================================================== TIMING
         /** @brief Recursive trigger for asynchronus interrupt driven stepping. */
-        Timeout timeout;
+        Timeout stepTimeout;
 
         /** @brief Make variable access thread safe. */
         Mutex stepperLock;
