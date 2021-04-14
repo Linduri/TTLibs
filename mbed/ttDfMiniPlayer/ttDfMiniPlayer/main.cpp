@@ -5,10 +5,7 @@
 BufferedSerial dfMiniPlayer(PA_0, PinName::NC); //TX RX
 DFRobotDFPlayerMini myDFPlayer;
 
-// void Play(int fileNumber){
-//  sendStack(0x03, fileNumber);
-
-// }
+DigitalIn userButton(USER_BUTTON);
 
 // main() runs in its own thread in the OS
 int main()
@@ -21,11 +18,14 @@ int main()
     myDFPlayer.begin(dfMiniPlayer);
 
     myDFPlayer.volume(25);
-    myDFPlayer.play(1);  //Play the first mp3
+    // myDFPlayer.play(1);  //Play the first mp3
 
     while(1){
-        ThisThread::sleep_for(1000ms);
-        debug("I'm alive!\r\n");
+        if(userButton){
+            myDFPlayer.next();
+        }
+
+        ThisThread::sleep_for(50ms);
     };
 
 
