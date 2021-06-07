@@ -228,6 +228,7 @@ void TTStepper::ClearEndstopReleased(void){
 int TTStepper::SetMaxSpeed(float speed){
     TTSTEPPER_ACQUIRE_MUTEX;
     maxSpeed = speed;
+    homeSpeed = 0.1f * speed;
     TTSTEPPER_RELEASE_MUTEX;
     return TTSTEPPER_SUCCESS;
 }
