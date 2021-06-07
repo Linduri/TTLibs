@@ -10,7 +10,7 @@
 * @brief This file contains the functions associated with TTStepper.
 *
 * @author Ted Tooth
-* @date 31 Jan 2021
+* @date 07 June 2021
 *
 * @copyright Ted Tooth 2021
 */
@@ -18,612 +18,323 @@
 #include "ttstepper.h"
 #include <algorithm>
 #include <chrono>
-#include <cstdint>
-#include <ratio>
+#include <functional>
 
-TTStepper::TTStepper(PinName en, PinName step, PinName dir, int stepsPerRev, float slideUnitsPerRev) : 
-                    degsPerStep(360.0f / stepsPerRev),
-                    stepsPerRevolution(stepsPerRev),
-                    en(en), 
-                    step(step), 
-                    dir(dir),
-                    slideUnitsPerStep(slideUnitsPerRev / stepsPerRev){
-    
-    //Set default speed parameters.
-    SetMaxRPS(TTSTEPPER_DEFAULT_RPS);
-    SetRPSS(TTSTEPPER_DEFAULT_RPSS);
-
-    //Enable the stepper.
-    this->en = 0;
+TTStepper::TTStepper(PinName en, PinName step, PinName dir, uint32_t stepsPerRev, float posPerRev) : step(step), dir(dir), en(en), stepsPerRev(stepsPerRev), posPerRev(posPerRev){
+    Disable();
 }
 
-float TTStepper::GetDegrees(void){
-    if(!stepperLock.trylock_for(TTSTEPPER_MUTEX_TIMEOUT)){
-        debug("TTStepper::GetDegrees() - Failed to acquire stepperLock!\r\n");
-        return TTSTEPPER_ERROR_MUTEX_TIMEOUT;
-    }    
-    else{
-        float degrees = fmod(GetRevs(), 1) * 360.0f;
+int TTStepper::SetEnable(bool enable){
+    TTSTEPPER_ACQUIRE_MUTEX;
+    int retval = TTSTEPPER_SUCCESS;
 
-        stepperLock.unlock();
-        return degrees;
-    }
-}
-
-float TTStepper::GetLifetimeDegrees(void){
-    if(!stepperLock.trylock_for(TTSTEPPER_MUTEX_TIMEOUT)){
-        debug("TTStepper::GetLifetimeDegrees() - Failed to acquire stepperLock!\r\n");
-        return TTSTEPPER_ERROR_MUTEX_TIMEOUT;
-    }    
-    else{
-        float degrees = GetRevs() * 360.0f;
-
-        stepperLock.unlock();
-        return degrees;
-    }
-}
-
-int TTStepper::Rotate(float degrees, bool direction){
-    return Step(degrees / degsPerStep, direction);
-}
-
-int TTStepper::RotateTo(float degrees){
-    float currentDegrees = GetDegrees();
-    float deltaDegrees;
-    bool direction;
-
-    if(degrees > currentDegrees){
-        deltaDegrees = degrees - currentDegrees;
-        direction = TTSTEPPER_CLOCKWISE;
-    }
-    else if(degrees < currentDegrees){
-        deltaDegrees = currentDegrees - degrees;
-        direction = TTSTEPPER_ANTICLOCKWISE;
+    if(en != NC){
+        en = enActiveLow ? !enable : enable;
+        retval = 1;
     }
     else{
-        //It's already there, return success.
-        return TTSTEPPER_SUCCESS;
+        retval = 0;
     }
 
-    //Choose the shortest path.
-    if(deltaDegrees > 180.0f){
-        direction = !direction;
-        deltaDegrees -= 180.0f;
-    }
-
-    return RotateTo(degrees, direction);
+    TTSTEPPER_RELEASE_MUTEX;
+    return retval;
 }
 
-int TTStepper::RotateTo(float degrees, bool direction){
-    int targetStep = degrees / degsPerStep;
-
-    uint32_t deltaSteps;    
-    
-    if(targetStep > currentStep){
-        if(direction == TTSTEPPER_CLOCKWISE){
-            deltaSteps = targetStep - currentStep;
-        }
-        else {
-            deltaSteps = stepsPerRevolution - (targetStep - currentStep);
-        }
-        
-    }
-    else if(targetStep < currentStep){
-        if(direction == TTSTEPPER_CLOCKWISE){
-            deltaSteps = stepsPerRevolution - (currentStep - targetStep);
-        }
-        else {
-            deltaSteps = currentStep - targetStep;
-        }
-    }
-    else {
-        //It's already there, return success.
-        return TTSTEPPER_SUCCESS;
-    }
-
-    return Step(deltaSteps, direction);
+bool TTStepper::Enable(){
+    return SetEnable(true);
 }
 
-int TTStepper::SetRotation(float degrees){
-    int targetSteps = degrees / degsPerStep;
-    bool direction;
-    int deltaSteps;
-
-    if(currentStep <= targetSteps){
-        direction = TTSTEPPER_CLOCKWISE;
-        deltaSteps = targetSteps - currentStep;
-    }
-    else{
-        direction = TTSTEPPER_ANTICLOCKWISE;
-        deltaSteps = currentStep - targetSteps;
-    }
-
-    return Step(deltaSteps, direction);
+bool  TTStepper::Disable(){
+    return SetEnable(false);
 }
 
-float TTStepper::GetSlidePositon(void){
-    if(!stepperLock.trylock_for(TTSTEPPER_MUTEX_TIMEOUT)){
-        debug("TTStepper::GetSlidePositon() - Failed to acquire stepperLock!\r\n");
-        return TTSTEPPER_ERROR_MUTEX_TIMEOUT;
-    }    
-    else{
-        float slidePosition = currentStep * slideUnitsPerStep;
-        stepperLock.unlock();
-        return slidePosition;
-    }
-}
-
-int TTStepper::InvertSlide(bool invert){
-    if(!stepperLock.trylock_for(TTSTEPPER_MUTEX_TIMEOUT)){
-        debug("TTStepper::InvertSlide() - Failed to acquire stepperLock!\r\n");
-        return TTSTEPPER_ERROR_MUTEX_TIMEOUT;
-    }    
-    else{
-        invertSlide = invert;
-        return TTSTEPPER_SUCCESS;
-    }
-}
-
-int TTStepper::SetSlideOffset(float offset){
-    if(!stepperLock.trylock_for(TTSTEPPER_MUTEX_TIMEOUT)){
-        debug("TTStepper::SetSlideOffset() - Failed to acquire stepperLock!\r\n");
-        return TTSTEPPER_ERROR_MUTEX_TIMEOUT;
-    }    
-    else{
-        slideOffset = offset;
-        return TTSTEPPER_SUCCESS;
-    }
-}
-
-int TTStepper::Slide(float distance, bool direction){
-    return Step(distance / slideUnitsPerStep, direction);
-}
-
-int TTStepper::SlideTo(float position){
-    float slidePosition = GetSlidePositon();
-
-    if(!stepperLock.trylock_for(TTSTEPPER_MUTEX_TIMEOUT)){
-        debug("TTStepper::InvertSlide() - Failed to acquire stepperLock!\r\n");
-        return TTSTEPPER_ERROR_MUTEX_TIMEOUT;
-    }    
-    else{
-        bool direction;
-        float deltaDistance;        
-        position += slideOffset;
-
-        if(slidePosition <= position){
-            deltaDistance = position - slidePosition;
-            direction = !invertSlide ? TTSTEPPER_CLOCKWISE : TTSTEPPER_ANTICLOCKWISE;
-        }
-        else{
-            deltaDistance = slidePosition - position;
-            direction = !invertSlide ? TTSTEPPER_ANTICLOCKWISE : TTSTEPPER_CLOCKWISE;
-        }
-
-        stepperLock.unlock();
-        return Step(deltaDistance * stepsPerRevolution, direction);        
-    }        
+bool TTStepper::IsEnabled(){
+    return en;
 }
 
 int TTStepper::RegisterEndstop(PinName pin, PinMode mode){
+    TTSTEPPER_ACQUIRE_MUTEX;
+    int retval = TTSTEPPER_SUCCESS;
+
     //Attatch endstop interrupts.
     if(lowerEndstop == 0){
         lowerEndstop = new InterruptIn(pin, mode);
         lowerEndstop->rise(callback(this, &TTStepper::LowerEndstopRiseISR));
         lowerEndstop->fall(callback(this, &TTStepper::LowerEndstopFallISR));
-        return 0;
+        retval = TTSTEPPER_LOWER_ENDSTOP;
     }
     else if(upperEndstop == 0){
         upperEndstop = new InterruptIn(pin, mode);
         upperEndstop->rise(callback(this, &TTStepper::UpperEndstopRiseISR));
         upperEndstop->fall(callback(this, &TTStepper::UpperEndstopFallISR));
-        return 1;
+        retval = TTSTEPPER_UPPER_ENDSTOP;
     }
     else{
-        return TTSTEPPER_ERROR_NO_FREE_ENDSTOPS;
+        retval = TTSTEPPER_NO_FREE_ENDSTOPS;
     }
+
+    TTSTEPPER_RELEASE_MUTEX;
+    return retval;
 }
 
-int TTStepper::ClearEndstopHit(void){
-    if(!stepperLock.trylock_for(TTSTEPPER_MUTEX_TIMEOUT)){
-        debug("TTStepper::ClearEndstopHit() - Failed to acquire stepperLock!\r\n");
-        return TTSTEPPER_ERROR_MUTEX_TIMEOUT;
+int TTStepper::Home(uint32_t bounceSteps, int endstopId){
+    TTSTEPPER_ACQUIRE_MUTEX;
+
+    homing = true;
+    debug("Homing\r\n");
+    int retVal = SUCCESS;
+    InterruptIn *endstop;
+
+    //Check for a registered endstop.
+    if(endstopId == TTSTEPPER_LOWER_ENDSTOP){
+        if(lowerEndstop == 0){
+            TTSTEPPER_RELEASE_MUTEX;
+            return TTSTEPPER_ENDSTOP_NOT_REGISTERED;
+        } else {
+            endstop = lowerEndstop;
+        }
+    }
+    else if(endstopId == TTSTEPPER_UPPER_ENDSTOP){
+        if(upperEndstop == 0){
+            TTSTEPPER_RELEASE_MUTEX;
+            return TTSTEPPER_ENDSTOP_NOT_REGISTERED;
+        } else {
+            endstop = upperEndstop;
+        }
     }
     else{
-        endstopHit = 0;
+        TTSTEPPER_RELEASE_MUTEX;
+        return TTSTEPPER_INVALID_ID;
+    }
 
-        stepperLock.unlock();
-        return TTSTEPPER_SUCCESS;
-    }    
+    //Make sure motor is stopped.
+    Stop();
+
+    debug("Moving to endstop\r\n");
+
+    while(endstop->read() == !invertEndstops){
+        retVal = Step(1, TTSTEPPER_ANTI_CLOCKWISE);
+        if(retVal == TTSTEPPER_ALREADY_MOVING){ 
+            TTSTEPPER_RELEASE_MUTEX;
+            return retVal;
+        }
+        WaitBlocking();
+    }
+
+    debug("Bouncing from endstop\r\n");
+
+    //Move out of hit endstop
+    while(endstop->read() == invertEndstops){
+        retVal = Step(1, TTSTEPPER_CLOCKWISE);
+        if(retVal == TTSTEPPER_ALREADY_MOVING){ 
+            TTSTEPPER_RELEASE_MUTEX; 
+            return retVal;
+        }
+        WaitBlocking();
+    }
+
+    //Move extra to avoid re-triggering endstop.
+    retVal = Step(bounceSteps, TTSTEPPER_CLOCKWISE);
+    if(retVal != SUCCESS){ 
+        TTSTEPPER_RELEASE_MUTEX;
+        return retVal;
+    }
+
+    WaitBlocking();
+
+    //Reset step.
+    currentStep = 0;
+
+    //Clear any latent endstop interrupts.
+    ClearEndstopHit();
+
+    homing = false;
+    debug("Homed!\r\n");
+    TTSTEPPER_RELEASE_MUTEX;
+    return SUCCESS;
 }
 
-int TTStepper::Invert(bool invert){
-    if(!stepperLock.trylock_for(TTSTEPPER_MUTEX_TIMEOUT)){
-        debug("TTStepper::Invert() - Failed to acquire stepperLock!\r\n");
-        return TTSTEPPER_ERROR_MUTEX_TIMEOUT;
-    }
-    else{
-        invertRotation = invert;
+int TTStepper::MoveSteps(long steps){
+    TTSTEPPER_ACQUIRE_MUTEX;
+    int retval = Step(steps, steps < 0 ? TTSTEPPER_ANTI_CLOCKWISE : TTSTEPPER_CLOCKWISE);
+    TTSTEPPER_RELEASE_MUTEX;
+    return retval;
+}
 
-        stepperLock.unlock();
-        return TTSTEPPER_SUCCESS;
+int TTStepper::MoveDegs(float degrees){
+    TTSTEPPER_ACQUIRE_MUTEX;
+
+    bool direction = TTSTEPPER_CLOCKWISE;
+
+    if(degrees < 0){
+        degrees *= -1;
+        direction = TTSTEPPER_ANTI_CLOCKWISE;
     }
+
+    int retval = Step((degrees / 360) * stepsPerRev, direction);
+
+    TTSTEPPER_RELEASE_MUTEX;
+    return retval;
+}
+
+int TTStepper::MovePos(float units){
+    return MoveDegs((units / posPerRev) * 360.f);
+}
+
+void TTStepper::GoToRot(float degrees){
+    MoveDegs(degrees - GetDegs());
+}
+
+void TTStepper::GoToPos(float pos){
+    GoToRot((pos / posPerRev) * 360.f);
+}
+
+int TTStepper::WaitBlocking(){
+    TTSTEPPER_ACQUIRE_MUTEX;
+
+    while(IsMoving()){
+        ThisThread::sleep_for(1ms);
+    }
+
+    TTSTEPPER_RELEASE_MUTEX;
+    return TTSTEPPER_SUCCESS;
+}
+
+void TTStepper::Stop(){
+    moving = false;
+    stepTimout.detach();
+}
+
+float TTStepper::GetDegs(){
+    return (currentStep / (float)stepsPerRev) * 360.0f;
+}
+
+float TTStepper::GetPos(){
+    return GetDegs() * (posPerRev / 360.0f);
+}
+
+bool TTStepper::IsMoving(){
+    return moving;
+}
+
+void TTStepper::ClearEndstopHit(void){
+    endstopHit = 0;
+}
+
+void TTStepper::ClearEndstopReleased(void){
+    endstopReleased = 0;
+}
+
+int TTStepper::SetMaxSpeed(float speed){
+    TTSTEPPER_ACQUIRE_MUTEX;
+    maxSpeed = speed;
+    TTSTEPPER_RELEASE_MUTEX;
+    return TTSTEPPER_SUCCESS;
+}
+
+int TTStepper::SetAccelerationMultiplier(float multiplier){
+    TTSTEPPER_ACQUIRE_MUTEX;
+    speedInterval = TTSTEPPER_BASE_SPEED_INTERVAL * multiplier;
+    TTSTEPPER_RELEASE_MUTEX;
+    return TTSTEPPER_SUCCESS;
+}
+
+int TTStepper::Reverse(bool reverse){
+    TTSTEPPER_ACQUIRE_MUTEX;
+    this->reverse = reverse;
+    TTSTEPPER_RELEASE_MUTEX;
+    return TTSTEPPER_SUCCESS;
 }
 
 int TTStepper::InvertEndstops(bool invert){
-    if(!stepperLock.trylock_for(TTSTEPPER_MUTEX_TIMEOUT)){
-        debug("TTStepper::InvertEndstops() - Failed to acquire stepperLock!\r\n");
-        return TTSTEPPER_ERROR_MUTEX_TIMEOUT;
-    }
-    else{
-        invertEndstops = true;
-
-        stepperLock.unlock();
-        return TTSTEPPER_SUCCESS;
-    }
+    TTSTEPPER_ACQUIRE_MUTEX;
+    invertEndstops = invert;
+    TTSTEPPER_RELEASE_MUTEX;
+    return TTSTEPPER_SUCCESS;
 }
 
-int TTStepper::Home(milliseconds timeout, bool direction){
-    if(homing){
-        return TTSTEPPER_ALREADY_HOMING;
-    }
-    else{
-        homing = true;
-        //Start the home.
-        Step(1, direction);
-        int waitResult = eventFlags.wait_any(TTSTEPPER_HOMED_FLAG, timeout.count());
-        //If no flag triggered, report timeout.
-        if(waitResult < 0){
-            stepTimeout.detach();
-            travelling = false;
-            homing = false;
-            return TTSTEPPER_ERROR_HOMING_TIMEOUT;
-        }
+int TTStepper::Step(uint32_t steps, bool direction){
+    if(!endstopHit | homing){
+        if(!moving){
 
-        //If waited and not returned, endstop must've been hit.
-        currentStep = 0;
-        //This was a planned endstop hit, clear the flag.
-        ClearEndstopHit();
-        homing = false;
+            moving = true;
 
-        return TTSTEPPER_SUCCESS;
-    }
-}
+            Enable();
+            
+            dir = !reverse ? direction : !direction;
+            
+            remainingSteps = steps;
 
-int TTStepper::SetMaxRPS(float rpsMax, float rpsMin){
-    if(!stepperLock.trylock_for(TTSTEPPER_MUTEX_TIMEOUT)){
-        debug("TTStepper::SetMaxRPS() - Failed to acquire stepperLock!\r\n");
-        return TTSTEPPER_ERROR_MUTEX_TIMEOUT;
-    }
-    else{
-        this->rpsMax = rpsMax;
-        this->minRps = rpsMin;
-        
-        stepperLock.unlock();
-        SetRPSS(rpss);
-
-        return TTSTEPPER_SUCCESS;
-    }
-}
-
-int TTStepper::SetRPSS(float rpss){
-    if(!stepperLock.trylock_for(TTSTEPPER_MUTEX_TIMEOUT)){
-        debug("TTStepper::SetRPSS() - Failed to acquire stepperLock!\r\n");
-        return TTSTEPPER_ERROR_MUTEX_TIMEOUT;
-    }
-    else{
-        //Assume any movement starts from stationary.
-        this->rpss = rpss;
-        rpssAdjusted = 1.0f / pow(rpss, 2);
-        rpssT = sqrt(pow(rpss, 2) + pow(rpsMax, 2));
-        rpsInterval = (minRps/rpssT);
-        accelerationSteps = rpsMax / rpsInterval;
-
-        stepperLock.unlock();
-        return TTSTEPPER_SUCCESS;
-    }
-}
-
-int TTStepper::SetSlideUnitsPerStep(float unitsPerStep){
-    if(!stepperLock.trylock_for(TTSTEPPER_MUTEX_TIMEOUT)){
-        debug("TTStepper::SetSlideUnitsPerStep() - Failed to acquire stepperLock!\r\n");
-        return TTSTEPPER_ERROR_MUTEX_TIMEOUT;
-    }
-    else{
-        slideUnitsPerStep = unitsPerStep;
-
-        stepperLock.unlock();
-
-        SetSlideUPS(upsMax);
-        SetSlideUPSS(upssMax);
-        return TTSTEPPER_SUCCESS;
-    }
-}
-
-int TTStepper::SetSlideUPS(float upsMax, float upsMin){
-    if(slideUnitsPerStep != 0){
-        this->upsMax = upsMax;
-        float equivolentMaxRps = upsMax / (slideUnitsPerStep * stepsPerRevolution);
-        
-        if(upsMin != -1){
-            float equivolentMinRps = upsMin / (slideUnitsPerStep * stepsPerRevolution);
-            SetMaxRPS(equivolentMaxRps, equivolentMinRps);
-        }
-        else{
-            SetMaxRPS(equivolentMaxRps);
-        }
-                
-        SetRPSS(rpss);
-        return TTSTEPPER_SUCCESS;
-    }
-    else{
-        return TTSTEPPER_ERROR_SLIDE_UNITS_PER_STEP_NOT_SET;
-    }
-}
-
-int TTStepper::SetSlideUPSS(float upss){
-    if(slideUnitsPerStep != 0){
-        float equivolentRpss = upss / (slideUnitsPerStep * stepsPerRevolution);
-        SetRPSS(equivolentRpss);
-        return TTSTEPPER_SUCCESS;
-    }
-    else{
-        return TTSTEPPER_ERROR_SLIDE_UNITS_PER_STEP_NOT_SET;
-    }
-}
-
-int TTStepper::WaitForTravelEnd(int timeoutMillis){
-    int waitResult;
-    if(timeoutMillis > 0){
-        waitResult = eventFlags.wait_any(TTSTEPPER_TRAVEL_ENDED_FLAG, timeoutMillis);
-    }
-    else{
-        waitResult = eventFlags.wait_any(TTSTEPPER_TRAVEL_ENDED_FLAG);
-    }
-
-    if(waitResult <= 0){
-        return TTSTEPPER_ERROR_TRAVEL_WAIT_TIMEOUT;
-    }
-    else{
-        return TTSTEPPER_SUCCESS;
-    }
-}
-
-int TTStepper::Enabled(void){
-    if(!stepperLock.trylock_for(TTSTEPPER_MUTEX_TIMEOUT)){
-        debug("TTStepper::Enabled() - Failed to acquire stepperLock!\r\n");
-        return TTSTEPPER_ERROR_MUTEX_TIMEOUT;
-    }
-    else{
-        bool enabled = en;
-
-        stepperLock.unlock();
-        return enabled;
-    }    
-}
-
-int TTStepper::Enable(bool enable){
-    if(!stepperLock.trylock_for(TTSTEPPER_MUTEX_TIMEOUT)){
-        debug("TTStepper::Enable() - Failed to acquire stepperLock!\r\n");
-        return TTSTEPPER_ERROR_MUTEX_TIMEOUT;
-    }
-    else{
-        en = enable ? !enActiveLow : enActiveLow;
-
-        stepperLock.unlock();
-        return TTSTEPPER_SUCCESS;
-    }
-}
-
-int TTStepper::Enable(void){
-    return Enable(true);
-}
-
-int TTStepper::Disable(void){
-    return Enable(false);
-}
-
-int TTStepper::LastEndstopHit(void){
-    if(!stepperLock.trylock_for(TTSTEPPER_MUTEX_TIMEOUT)){
-        debug("TTStepper::LastEndstopHit() - Failed to acquire stepperLock!\r\n");
-        return TTSTEPPER_ERROR_MUTEX_TIMEOUT;
-    }
-    else{
-        bool result = endstopHit;
-
-        stepperLock.unlock();
-        return result;
-    }
-}
-
-int TTStepper::LastEndstopReleased(void){
-    if(!stepperLock.trylock_for(TTSTEPPER_MUTEX_TIMEOUT)){
-        debug("TTStepper::LastEndstopReleased() - Failed to acquire stepperLock!\r\n");
-        return TTSTEPPER_ERROR_MUTEX_TIMEOUT;
-    }
-    else{
-        bool result = endstopReleased;
-
-        stepperLock.unlock();
-        return result;
-    }
-}
-
-int TTStepper::GetHoming(void){
-    if(!stepperLock.trylock_for(TTSTEPPER_MUTEX_TIMEOUT)){
-        debug("TTStepper::GetHoming() - Failed to acquire stepperLock!\r\n");
-        return TTSTEPPER_ERROR_MUTEX_TIMEOUT;
-    }
-    else{
-        bool result = homing;
-
-        stepperLock.unlock();
-        return result;
-    }
-}
-
-int TTStepper::SetActiveBraking(bool enable){
-    if(!stepperLock.trylock_for(TTSTEPPER_MUTEX_TIMEOUT)){
-        debug("TTStepper::SetActiveBraking() - Failed to acquire stepperLock!\r\n");
-        return TTSTEPPER_ERROR_MUTEX_TIMEOUT;
-    }
-    else{
-        activeBraking = enable;
-        return TTSTEPPER_SUCCESS;
-    }
-}
-
-int TTStepper::SetEndstopHitCallback(function<void(int)> callback){
-    if(!stepperLock.trylock_for(TTSTEPPER_MUTEX_TIMEOUT)){
-        debug("TTStepper::SetEndstopHitCallback() - Failed to acquire stepperLock!\r\n");
-        return TTSTEPPER_ERROR_MUTEX_TIMEOUT;
-    }
-    else{
-        onEndstopHit = callback;
-
-        stepperLock.unlock();
-        return TTSTEPPER_SUCCESS;
-    }
-}
-
-int TTStepper::SetEndstopReleasedCallback(function<void(int)> callback){
-    if(!stepperLock.trylock_for(TTSTEPPER_MUTEX_TIMEOUT)){
-        debug("TTStepper::SetEndstopReleasedCallback() - Failed to acquire stepperLock!\r\n");
-        return TTSTEPPER_ERROR_MUTEX_TIMEOUT;
-    }
-    else{
-        onEndstopReleased = callback;
-
-        stepperLock.unlock();
-        return TTSTEPPER_SUCCESS;
-    }
-}
-
-int TTStepper::Step(uint32_t steps, bool direciton){
-    if(!stepperLock.trylock_for(TTSTEPPER_MUTEX_TIMEOUT)){
-        debug("TTStepper::Step() - Failed to acquire stepperLock!\r\n");
-        return TTSTEPPER_ERROR_MUTEX_TIMEOUT;
-    }
-    else{          
-        //If an endstop hit is not cleared, don't move!
-        if(!endstopHit){  
-            if(!travelling){
-                //If active braking, re-enable the stepper.
-                if(activeBraking){
-                    en = !enActiveLow;
-                }
-
-                travelling = true;
-                remainingSteps = steps;
-                dir = invertRotation ? !direciton : direciton;
-                
-                int midSteps = steps / 2;
-                if(accelerationSteps > midSteps){
-                    decelerationStep = midSteps;
-                }
-                else{
-                    decelerationStep = accelerationSteps;
-                }
-                //Reset velocity in case it didn't reset.
-                rps = minRps;
-
-                StepISR();
-                stepperLock.unlock();
-                return TTSTEPPER_SUCCESS;
+            uint32_t accelerationStopStep = (maxSpeed - minSpeed) / speedInterval;
+            if(steps > accelerationStopStep * 2){
+                slowStep = accelerationStopStep;
             }
             else{
-                stepperLock.unlock();
-                return TTSTEPPER_ERROR_ALREADY_TRAVELLING;
+                slowStep = steps / 2;
             }
+
+            speed = minSpeed;
+
+            StepTimeoutHandler();
+
+            return SUCCESS;
         }
         else{
-            stepperLock.unlock();
-            return TTSTEPPER_ERROR_ENDSTOP_HIT;
+            return TTSTEPPER_ALREADY_MOVING;
         }
     }
+    else{
+        return TTSTEPPER_ENDSTOP_HIT;
+    }
+
+    return TTSTEPPER_SUCCESS;
 }
 
-void TTStepper::StepISR(void){
-    if(remainingSteps != 0){
-        step = 1;
-        step = 0;
+void TTStepper::StepTimeoutHandler(){
+    if(remainingSteps){
+        step = stepActiveLow ? false : true;
+        step = !step;
 
         currentStep = dir ? currentStep + 1 : currentStep - 1;
-
-        //If homing, don't decrement steps.
-        if(!homing){
-            remainingSteps--;
-        }
         
-        if(remainingSteps > decelerationStep){
-            //Calculate current step velocity. 
-            if(rps < rpsMax){
-                rps += rpsInterval;
-                if(rps >= rpsMax){
-                    rps = rpsMax;
+        remainingSteps--;
+
+        if(remainingSteps > slowStep){
+            if(speed < maxSpeed){
+                speed += speedInterval;
+
+                if(speed > maxSpeed){
+                    speed = maxSpeed;
                 }
-            }
-            else {
-                //Do nothing.
             }
         }
         else{
-            if(rps > minRps){
-                rps -= rpsInterval;
-                if(rps < 0.0f){
-                    rps = minRps;
-                }
-            }
-            else {
-                //Do nothing.
+            speed -= speedInterval;
+
+            if(speed < minSpeed){
+                speed = minSpeed;
             }
         }
 
-        //Calculate the current velocity interval.
-        long period = (1000000.0f / (stepsPerRevolution * rps));
-        stepTimeout.attach(callback(this, &TTStepper::StepISR), microseconds(period));
-    }
-    else{
-        travelling = false;
-        eventFlags.set(TTSTEPPER_TRAVEL_ENDED_FLAG);
-
-        if(!activeBraking){
-            en = enActiveLow;
+        long period;
+        if(homing){
+            period = (1000000.0f / (stepsPerRev * homeSpeed));
+        } else{
+            period = (1000000.0f / (stepsPerRev * speed));
         }
-    }
-}
 
-float TTStepper::GetRevs(void){
-    //Acquire lock for non-volatile stepsPerRevolution variable.
-    if(!stepperLock.trylock_for(TTSTEPPER_MUTEX_TIMEOUT)){
-        return TTSTEPPER_ERROR_MUTEX_TIMEOUT;
-    }        
+        stepTimout.attach(callback(this, &TTStepper::StepTimeoutHandler), chrono::microseconds(period));
+    }
     else{
-        //Cast currentStep to float to make sure this divide is floating point.
-        float revs = (float)currentStep / stepsPerRevolution;
-        stepperLock.unlock();
-        return revs;
-    }    
+        Stop();
+    }
 }
 
 void TTStepper::Endstop(int id, bool rise){
     rise = invertEndstops ? !rise : rise;
 
     if(rise){
-        //If non-active braking, disable the stepper.
-        en = activeBraking ? !enActiveLow : enActiveLow;     
-        //Stop any step sequence.
-        stepTimeout.detach();
-
-        travelling = false;
-
-        if(homing){
-            homing = false;
-            eventFlags.set(TTSTEPPER_HOMED_FLAG);            
-        }
-        else{
-            eventFlags.set(TTSTEPPER_TRAVEL_ENDED_FLAG);
-        }       
+        Stop();
         
         endstopHit = id;
         if(onEndstopHit != 0){
@@ -639,17 +350,22 @@ void TTStepper::Endstop(int id, bool rise){
 }
 
 void TTStepper::LowerEndstopRiseISR(void){
-    Endstop(0, true);
+    Endstop(TTSTEPPER_LOWER_ENDSTOP, true);
 }
 
 void TTStepper::LowerEndstopFallISR(void){
-    Endstop(0, false);
+    Endstop(TTSTEPPER_LOWER_ENDSTOP, false);
 }
 
 void TTStepper::UpperEndstopRiseISR(void){
-    Endstop(1, true);
+    Endstop(TTSTEPPER_UPPER_ENDSTOP, true);
 }
 
 void TTStepper::UpperEndstopFallISR(void){
-    Endstop(1, false);
+    Endstop(TTSTEPPER_UPPER_ENDSTOP, false);
+}
+
+TTStepper::~TTStepper(){
+    Stop();
+    Disable();
 }
