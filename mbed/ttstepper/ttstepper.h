@@ -161,7 +161,7 @@ class TTStepper{
         void ClearEndstopReleased();
 
         /** 
-        * @brief Scale maximum motor speed (units are abstract).
+        * @brief Scale maximum motor speed (units are abstract). Sets the home speed to 10% max speed. Sets min speed to 1% max speed.
         * @param speed The desired speed.
         * @returns Success or a negative TTSTEPPER error code.
         */
