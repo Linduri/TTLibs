@@ -168,6 +168,20 @@ class TTStepper{
         int SetMaxSpeed(float speed);
 
         /** 
+        * @brief Scale minimum motor speed (units are abstract). Sets the home speed to 10% max speed. Sets min speed to 1% max speed.
+        * @param speed The desired speed.
+        * @returns Success or a negative TTSTEPPER error code.
+        */
+        int SetMinSpeed(float speed);
+
+        /** 
+        * @brief Scale motor homing speed (units are abstract). Sets the home speed to 10% max speed. Sets min speed to 1% max speed.
+        * @param speed The desired speed.
+        * @returns Success or a negative TTSTEPPER error code.
+        */
+        int SetHomingSpeed(float speed);
+
+        /** 
         * @brief Scale stepper acceleration.
         * @param multiplier The desired acceleration multiplier.
         * @returns Success or a negative TTSTEPPER error code.
