@@ -121,6 +121,9 @@ int TTStepper::Home(uint32_t bounceSteps, int endstopId){
         WaitBlocking();
     }
 
+    //If hit before wait triggered. Clear endstop hit.
+    ClearEndstopHit();
+
     debug("Bouncing from endstop\r\n");
 
     //Move out of hit endstop
@@ -132,6 +135,9 @@ int TTStepper::Home(uint32_t bounceSteps, int endstopId){
         }
         WaitBlocking();
     }
+
+    //If hit before wait triggered. Clear endstop hit.
+    ClearEndstopHit();
 
     //Move extra to avoid re-triggering endstop.
     retVal = Step(bounceSteps, TTSTEPPER_CLOCKWISE);
