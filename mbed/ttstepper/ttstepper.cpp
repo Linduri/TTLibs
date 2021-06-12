@@ -113,7 +113,7 @@ int TTStepper::Home(uint32_t bounceSteps, int endstopId){
     debug("Moving to endstop\r\n");
 
     while(endstop->read() == !invertEndstops){
-        retVal = Step(1, TTSTEPPER_ANTI_CLOCKWISE);
+        retVal = Step(1000000000, TTSTEPPER_ANTI_CLOCKWISE);
         if(retVal == TTSTEPPER_ALREADY_MOVING){ 
             TTSTEPPER_RELEASE_MUTEX;
             return retVal;
@@ -125,7 +125,7 @@ int TTStepper::Home(uint32_t bounceSteps, int endstopId){
 
     //Move out of hit endstop
     while(endstop->read() == invertEndstops){
-        retVal = Step(1, TTSTEPPER_CLOCKWISE);
+        retVal = Step(1000000000, TTSTEPPER_CLOCKWISE);
         if(retVal == TTSTEPPER_ALREADY_MOVING){ 
             TTSTEPPER_RELEASE_MUTEX; 
             return retVal;
